@@ -1,0 +1,257 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: TradeSim250 Full Stack Infrastructure (using LabRole)
+
+Parameters:
+  LabRoleArn:
+    Type: String
+    Description: ARN of the existing LabRole IAM Role
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 Key Pair for SSH access
+
+Resources:
+
+  # VPC & Networking
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: TradeSim250VPC }]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: PublicSubnet }]
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags: [{ Key: Name, Value: PrivateSubnet }]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  # S3 Buckets
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: tradesim250-frontend
+
+  LogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: tradesim250-logs
+
+  # SNS Topic
+  TradeAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: trade-alertss
+
+  # Lambda Functions
+  TradeAlertLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: TradeAlertFunctionSim
+      Handler: index.handler
+      Role: !Ref LabRoleArn
+      Runtime: python3.9
+      Code:
+        ZipFile: !Sub |
+          def handler(event, context):
+              print("Lambda alert sent!")
+              return "Lambda alert sent!"
+
+  ComplianceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ComplianceCheckFunctionSim
+      Handler: index.handler
+      Role: !Ref LabRoleArn
+      Runtime: python3.9
+      Code:
+        ZipFile: !Sub |
+          def handler(event, context):
+              print("Compliance checked.")
+              return "Compliance checked"
+
+  RebalanceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: RebalanceFunctionSim
+      Handler: index.handler
+      Role: !Ref LabRoleArn
+      Runtime: python3.9
+      Code:
+        ZipFile: !Sub |
+          def handler(event, context):
+              print("Portfolio rebalanced.")
+              return "Portfolio rebalanced"
+
+  LogToS3Lambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: WriteTradeLogToS3Sim
+      Handler: index.handler
+      Role: !Ref LabRoleArn
+      Runtime: python3.9
+      Code:
+        ZipFile: !Sub |
+          import boto3, json
+          def handler(event, context):
+              s3 = boto3.client("s3")
+              s3.put_object(Bucket="tradesim250-logs", Key="log.json", Body=json.dumps(event))
+              return "Trade log saved to S3"
+
+  HealthCheckLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: HealthCheckFunctionSim
+      Handler: index.handler
+      Role: !Ref LabRoleArn
+      Runtime: python3.9
+      Code:
+        ZipFile: !Sub |
+          def handler(event, context):
+              return "System is healthy"
+
+  # API Gateway
+  ApiGateway:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: TradeSim250API
+      ProtocolType: HTTP
+
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref ApiGateway
+      StageName: prod
+      AutoDeploy: true
+
+  ApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ApiGateway
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TradeAlertLambda.Arn}/invocations
+      PayloadFormatVersion: '2.0'
+
+  ApiRoutes:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: 'POST /trade-alerts'
+      Target: !Sub integrations/${ApiIntegration}
+
+  LambdaApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TradeAlertLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*
+
+  # EC2 Instance
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      ImageId: ami-0c7217cdde317cfec
+      SubnetId: !Ref PublicSubnet
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      Tags: [{ Key: Name, Value: TradeSim250EC2 }]
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [ !Select [1, !Split ["/", !Ref LabRoleArn]] ]
+
+  # FIXED: RDS Subnet Group with 2 AZs
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnet group for RDS (2 AZs)"
+      SubnetIds:
+        - !Ref PrivateSubnet
+        - !Ref PublicSubnet
+
+  # FIXED: Valid Security Group description
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow PostgreSQL access from EC2"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.0.0.0/16
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: postgres
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      DBInstanceIdentifier: tradesim250db
+      MasterUsername: dbadmin
+      MasterUserPassword: AdminPass123!
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      VPCSecurityGroups: [ !GetAtt RDSSecurityGroup.GroupId ]
+      PubliclyAccessible: false
+      MultiAZ: false
+
+  # CloudWatch Logs for EC2
+  EC2LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /var/log/ec2-user.log
+      RetentionInDays: 7
+
+Outputs:
+  EC2PublicIP:
+    Description: Public IP of EC2 instance
+    Value: !GetAtt EC2Instance.PublicIp
+
+  S3FrontendURL:
+    Description: S3 Frontend URL
+    Value: !Sub https://${FrontendBucket}.s3.${AWS::Region}.amazonaws.com/index.html
+
+  ApiEndpoint:
+    Description: Invoke URL of API Gateway
+    Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod
