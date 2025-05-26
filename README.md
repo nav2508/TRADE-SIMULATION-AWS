@@ -3,110 +3,117 @@
 
 
 
-1. Project Overview
-TradeSimulation is a cloud-native, event-driven financial trading simulation platform developed as part of the CSCI 5409 course. The platform allows users to simulate stock trading, monitor compliance, and receive real-time alerts without actual financial risk. Key features include user registration, portfolio management, rule-based compliance checks, health monitoring, and logging—all built on a secure and scalable AWS architecture.
+# TradeSimulation - Cloud-Native Financial Trading Platform
 
-2. Objective
-The goal was to design and deploy a fully self-contained serverless and infrastructure-as-code-driven simulation system that emulates a real-world trading environment. The architecture prioritizes modularity, scalability, and isolation of services for performance, security, and maintainability.
+## 1. Project Overview
 
-3. Key Technologies Used
-Frontend: ReactJS static build hosted on Amazon S3
+**TradeSimulation** is a cloud-native, event-driven financial trading simulation platform developed as part of the **CSCI 5409** course. It enables users to simulate stock trading, monitor compliance, and receive real-time alerts without actual financial risk.
 
-Backend: Flask application running on EC2 within a private subnet
+### Key Features:
+- User registration & portfolio management  
+- Rule-based compliance checks  
+- Health monitoring & audit logging  
+- Secure & scalable AWS deployment  
 
-Database: PostgreSQL hosted on Amazon RDS
+---
 
-Orchestration: AWS Lambda functions for trade alerts, compliance, logging, and health checks
+## 2. Objective
 
-Messaging: Amazon SNS for email alerts
+To design and deploy a **fully self-contained**, serverless, and infrastructure-as-code-driven simulation system that emulates a real-world trading environment. The focus is on modularity, scalability, service isolation, and secure operations.
 
-Security: IAM roles (LabRole), VPC subnet isolation, Security Groups
+---
 
-Infrastructure-as-Code: AWS CloudFormation
+## 3. Key Technologies Used
 
-Monitoring: Amazon CloudWatch for EC2 and Lambda logs
+| Layer         | Technology                                                                 |
+|---------------|----------------------------------------------------------------------------|
+| Frontend      | ReactJS (Static site hosted on Amazon S3)                                 |
+| Backend       | Flask (Python) on Amazon EC2 (private subnet)                             |
+| Database      | PostgreSQL on Amazon RDS                                                  |
+| Orchestration | AWS Lambda (alerts, compliance, logging, health checks)                   |
+| Messaging     | Amazon SNS (email alerts)                                                 |
+| Security      | IAM (LabRole), VPC subnet isolation, Security Groups                      |
+| IaC           | AWS CloudFormation                                                        |
+| Monitoring    | Amazon CloudWatch (EC2 & Lambda logs)                                     |
 
-4. Architecture
-Figure 2: AWS Architecture Diagram
+---
 
-The architecture comprises both serverless and server-based components arranged across public and private subnets within a single VPC. The following are key architectural highlights:
+## 4. Architecture
 
-Public Subnet: Hosts the API Gateway and S3 frontend.
+**Figure 2: AWS Architecture Diagram**
 
-Private Subnet: Contains EC2 (Flask backend), RDS (PostgreSQL), and all Lambda functions.
+The platform follows a hybrid cloud architecture leveraging both serverless and server-based components within a custom VPC:
 
-S3 Bucket: Stores frontend React build (public read-only) and audit logs (restricted).
+- **Public Subnet**: API Gateway, S3-hosted frontend  
+- **Private Subnet**: EC2 (Flask backend), RDS, and all Lambda functions  
+- **S3 Bucket**: Stores static React frontend and audit logs  
+- **API Gateway**: Secure API access layer  
+- **Lambda**: Handles alerts, compliance, logging, and health checks  
+- **SNS**: Email notifications for trade events  
+- **CloudFormation**: Full-stack infrastructure provisioning  
 
-API Gateway: Routes API calls securely to the backend.
+---
 
-EC2 (Flask): Processes user registration, trades, and interacts with RDS.
+## 5. Subnet Isolation & Security
 
-Lambda Functions: Perform alerting, compliance checks, logging, and health monitoring.
+Security is enforced via network architecture and IAM:
 
-SNS: Sends trade alerts to verified email addresses.
+- **Custom VPC** with public/private subnets  
+- **Private Subnet**: EC2 and RDS isolated from internet access  
+- **Public Subnet**: Only API Gateway and S3 are exposed  
+- **Security Groups**: Restrict EC2 and RDS communication  
+- **IAM Roles**: All compute resources assume the pre-provided **LabRole**  
 
-CloudFormation: Provisions all infrastructure including VPC, subnets, security groups, EC2, RDS, S3, Lambda, and SNS.
+---
 
-5. Subnet Isolation and Security
-Security is enforced through careful network and identity configurations:
+## 6. Deployment Flow
 
-VPC Design: All resources are contained within a custom VPC.
+1. Provisionioned resources using **CloudFormation**
+2. Deployed Flask backend to EC2 via Git
+3. Built and uploaded React frontend to S3
+4. Configured and deployed Lambda functions
+5. Connected API Gateway to backend endpoints
+6. Subscribed SNS for email-based trade alerts
 
-Private Subnet: EC2 and RDS are inaccessible from the internet.
+---
 
-Public Subnet: Only S3 and API Gateway are exposed publicly.
+## 7. Data Flow & Interactions
 
-Security Groups: EC2 and RDS communicate securely through controlled ports.
+- Users access the React frontend on S3  
+- Frontend communicates with API Gateway  
+- API Gateway routes requests to EC2 or Lambda  
+- EC2 interacts with RDS to persist user/trade data  
+- Lambda functions handle compliance & monitoring  
+- SNS sends real-time trade notifications  
+- Logs are streamed to CloudWatch and optionally to S3  
 
-IAM: All Lambda functions and EC2 assume the pre-provided LabRole.
+---
 
-6. Deployment Flow
-CloudFormation provisions all AWS resources.
+## 8. Cost & Resource Estimation
 
-Flask backend is deployed to EC2 using Git.
+The platform is optimized for **AWS Free Tier** use:
 
-React frontend is built and uploaded to S3.
+- EC2 (t2.micro) for backend  
+- RDS (PostgreSQL free tier)  
+- S3 (static frontend and logs)  
+- Lambda, API Gateway, and SNS (within free quotas)  
 
-Lambda functions are created and mapped to events.
+> For full-scale use, consider costs for uptime, storage, notifications, and traffic.
 
-API Gateway is configured to route requests to backend.
+---
 
-SNS topic is subscribed for real-time notifications.
+## 9. Future Enhancements
 
-7. Data Flow and Interactions
-Users interact with the S3-hosted frontend.
+- Add WebSocket support for real-time dashboard updates  
+- Implement user authentication via Amazon Cognito  
+- Set up CI/CD pipeline using AWS CodePipeline  
+- Enable CloudTrail for advanced audit logging  
+- Use AWS Step Functions for workflow orchestration  
 
-Frontend calls API Gateway which triggers backend logic via EC2 or Lambda.
+---
 
-EC2 interacts with RDS to persist user/trade data.
+## 10. Conclusion
 
-Lambda functions are triggered for compliance checks and alerts.
+**TradeSimulation** is a complete cloud-native platform demonstrating secure, modular, and event-driven architecture. It serves as a practical implementation for **CSCI 5409**, showcasing the use of AWS services to emulate real-world trading systems with a strong emphasis on performance, observability, and best DevOps practices.
 
-SNS sends email alerts for significant trade events.
-
-Logs are streamed to CloudWatch and optionally saved to S3 as JSON.
-
-8. Cost & Resource Estimation
-The architecture is designed to operate within AWS Free Tier limits. Key components like Lambda, S3, and EC2 (t2.micro) are cost-optimized. A real-world deployment would incur costs primarily for:
-
-EC2 uptime (if continuously running)
-
-RDS instance and storage
-
-S3 storage for frontend and logs
-
-SNS notifications (beyond Free Tier)
-
-9. Future Enhancements
-Integrate WebSocket support for real-time dashboards.
-
-Add Cognito for managed user authentication.
-
-Add automated CI/CD pipeline using CodePipeline.
-
-Introduce CloudTrail for deeper auditing.
-
-Use Step Functions for multi-step workflows.
-
-10. Conclusion
-The TradeSimulation platform demonstrates an end-to-end cloud-native design that balances security, performance, and modularity. It leverages core AWS services in a hybrid delivery model and achieves full stack deployment via CloudFormation. This implementation meets the academic and technical requirements of CSCI 5409 while reflecting real-world best practices.
+---
